@@ -1,0 +1,150 @@
+---
+title: "Project: Google Data Analytics Capstone - Case Study 1"
+author: "Daniel Zhang"
+date: "8/18/2021"
+output: html_document
+---
+### Scenario
+You are a junior data analyst working in the marketing analyst team at Cyclistic, a bike-share company in Chicago. The director of marketing believes the company’s future success depends on maximizing the number of annual memberships. Therefore, your team wants to understand how casual riders and annual members use Cyclistic bikes differently. From these insights, your team will design a new marketing strategy to convert casual riders into annual members. But first, Cyclistic executives must approve your recommendations, so they must be backed up with compelling data insights and professional data visualizations.
+
+### Ask:
+* Find the key differences between annual members and casual riders in terms of how to use Cyclistic; 
+* Find out how digital media could aﬀect marketing tactics.
+
+### Prepare
+This project will use the data provided by Google, for more details, click [here](https://divvy-tripdata.s3.amazonaws.com/index.html)
+
+### Code:
+
+Setting up the environment
+```{r}
+library(tidyverse)  
+library(dplyr)
+library(data.table)
+library(lubridate)
+library(ggplot2)
+```
+
+Import files ranging from 202004 to 202012
+```{r}
+filenames <-list.files("C:\\Users\\BinZhang\\Desktop\\Cap1", pattern = "*.csv", full.names = TRUE)
+tripdata <- rbindlist(lapply(filenames, fread))
+```
+
+Data cleaning: remove rows with NA values.
+```{r}
+cleaned_tripdata<-tripdata[complete.cases(tripdata[,]),]
+```
+
+Date cleaning: remove more rows with missing/blank values in certain columns.
+```{r}
+cleaned_tripdata<-cleaned_tripdata[!(cleaned_tripdata$start_station_name =="" | cleaned_tripdata$start_station_id =="" | cleaned_tripdata$end_station_name == "" | cleaned_tripdata$end_station_id == "" ),]
+```
+
+data cleaning: filter out data with started_at > ended_at
+```{r}
+cleaned_tripdata <- cleaned_tripdata %>% 
+  filter(started_at < ended_at)
+```
+
+Add a new column for the duration of each trip in min:
+```{r}
+diff_time_min <- difftime(as.POSIXct(cleaned_tripdata$ended_at), as.POSIXct(cleaned_tripdata$started_at), units = "mins")
+cleaned_tripdata <- cleaned_tripdata %>% 
+  mutate(trip_duration_min = as.integer(diff_time_min))
+```
+
+Calculate the average time of the service being used by members and casual riders.
+```{r}
+cleaned_tripdata %>% 
+  group_by(member_casual) %>%
+  drop_na() %>% 
+  summarize(ave_time = mean(trip_duration_min))
+```
+
+
+Let's find out what the top 5 busiest and least busy start stations are.
+```{r}
+cleaned_tripdata %>% 
+  count(start_station_name, member_casual, sort = TRUE)
+```
+
+
+Let's find out what the top 5 busiest and least busy end stations are.
+```{r}
+cleaned_tripdata %>% 
+  count(end_station_name, member_casual, sort = TRUE)
+```
+
+
+Let's find out how busy each day is within a week. 
+```{r}
+cleaned_tripdata %>% 
+  count(weekdays(as.Date(cleaned_tripdata$started_at)), sort = TRUE)
+```
+
+
+Insert a new column showing on which day each ridership happens.
+```{r}
+cleaned_tripdata <- cleaned_tripdata %>% 
+  mutate(day_of_week = weekdays(as.Date(started_at)))
+```
+
+We can see that docked_bike is the most popular choice among both members and casual riders.
+```{r}
+cleaned_tripdata %>% 
+  group_by(member_casual, rideable_type) %>% 
+  summarize(num_of_rides = n())
+```
+
+
+Prepare for the visualization.
+```{r}
+options(scipen = 999)
+cleaned_tripdata$day_of_week <- factor(cleaned_tripdata$day_of_week, levels = c("Monday","Tuesday","Wednesday", "Thursday","Friday","Saturday","Sunday"))
+```
+
+Visualize the popularity of each ride type.
+```{r}
+ggplot(cleaned_tripdata) +
+  geom_bar(aes(x = cleaned_tripdata$day_of_week, fill = rideable_type)) +
+  labs(title = "Share of Ride Type",
+       caption = paste0("Data from Google Capstone Project 1"),
+        x = "Weekdays", y = "Number of rides")
+```
+
+Visualize the weekly usage of each ride type for members and casual riders respectively.
+```{r}
+ggplot(cleaned_tripdata)+
+  geom_bar(aes(x = cleaned_tripdata$day_of_week, fill = rideable_type))+
+  facet_wrap(~member_casual)+
+  labs(title = "Share of Ride Type",
+       caption = paste0("Data from Google Capstone Project 1"),
+       x = "Weekdays", y = "Number of rides")
+```
+
+### Bias:
+Due to data privacy issues, we can’t determine if casual riders live in the Cyclistic service area or if they have purchased multiple single passes; also, for the same reason, we won’t be able to find out which data is from the same rider and which one is not, therefore, we assume that the data from each row is from a distinct rider.
+
+
+### Conclusion: 
+Based on the data we have, it's hard to come up with a strategy of how to convert casual cyclists to members. However, there are some obvious trends to consider that may help us when making decisions:
+
+* For casual riders, most of the rides happen during the weekends
+* For members, most of the rides happen during the weekdays
+* Majority of the kind of bikes used is docked bike.
+* On average, casual riders spend much more time using the service
+* Not clear how the route taken by the riders would affect the business
+
+
+### Recommendation:
+* Put out discounts for becoming members as well as increase the rental fees on weekends to persuade more casual riders to become members
+* Put out discounts occasionally during weekdays to keep members stay 
+* Increase the number of docked-bikes as well as rental stations on the busy streets to attract more riders
+* Decrease the number of bikes as well as rental stations on the least busy streets to save cost
+* Put out more advertisement in the least busy streets/districts
+
+
+
+
+
